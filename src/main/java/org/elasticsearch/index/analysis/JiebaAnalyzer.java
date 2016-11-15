@@ -19,6 +19,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
@@ -96,7 +97,9 @@ public class JiebaAnalyzer extends Analyzer {
                     try {
                         return WordlistLoader.getWordSet(
                             IOUtils.getDecodingReader(
-                                new FileInputStream(stopWordFilePath),
+                                new FileInputStream(Paths.get(
+									dataPath.toString(),
+									stopWordFilePath).toString()),
                                 StandardCharsets.UTF_8),
                             STOPWORD_FILE_COMMENT).stream();
                     } catch (IOException e) {
