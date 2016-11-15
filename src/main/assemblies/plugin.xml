@@ -45,6 +45,8 @@
 			<useTransitiveFiltering>true</useTransitiveFiltering>
 			<includes>
 				<include>com.huaban:jieba-analysis</include>
+				<include>org.springframework:spring-core</include>
+				<include>ant:ant</include>
 			</includes>
 		</dependencySet>
 	</dependencySets>
