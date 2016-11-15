@@ -1,10 +1,6 @@
 package org.elasticsearch.index.analysis;
 
-import java.io.FileReader;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-
+import com.huaban.analysis.jieba.WordDictionary;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
@@ -12,19 +8,26 @@ import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.analysis.util.WordlistLoader;
 import org.apache.lucene.util.IOUtils;
+import org.apache.tools.ant.DirectoryScanner;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
-import com.huaban.analysis.jieba.WordDictionary;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 public class JiebaAnalyzer extends Analyzer {
 	private final ESLogger log = Loggers.getLogger(JiebaAnalyzer.class);
 
 	private final CharArraySet stopWords;
 
-	private static final String DEFAULT_STOPWORD_FILE = "stopwords.txt";
+	private static final String DEFAULT_STOPWORD_FILE_PATTERN = "stopwords.*.txt";
 
 	private static final String STOPWORD_FILE_COMMENT = "//";
 
@@ -57,22 +60,51 @@ public class JiebaAnalyzer extends Analyzer {
 
 		static CharArraySet loadDefaultStopWordSet() throws IOException {
 			// make sure it is unmodifiable as we expose it in the outer class
-			return CharArraySet.unmodifiableSet(WordlistLoader.getWordSet(
-					IOUtils.getDecodingReader(JiebaAnalyzer.class,
-							DEFAULT_STOPWORD_FILE, StandardCharsets.UTF_8),
-					STOPWORD_FILE_COMMENT));
+			PathMatchingResourcePatternResolver pathMatchingResourcePatternResolver =
+				new PathMatchingResourcePatternResolver(JiebaAnalyzer.class.getClassLoader());
+			return CharArraySet.unmodifiableSet(new CharArraySet(Arrays.
+				stream(
+					pathMatchingResourcePatternResolver.
+						getResources("classpath*:" + DEFAULT_STOPWORD_FILE_PATTERN)).
+							flatMap(
+								(stopWordResource) -> {
+									try {
+										return WordlistLoader.getWordSet(
+											IOUtils.getDecodingReader(stopWordResource.getInputStream(),
+												StandardCharsets.UTF_8),
+											STOPWORD_FILE_COMMENT).stream();
+									} catch (IOException e) {
+										e.printStackTrace();
+									}
+									return null;
+								}
+			).collect(Collectors.toSet()), false));
 		}
 	}
 
 	private String type;
 
 	private CharArraySet loadStopWords(Path dataPath) {
-		try {
-			return CharArraySet.unmodifiableSet(WordlistLoader.getWordSet(
-					new FileReader(dataPath.resolve("stopwords.txt").toFile()), STOPWORD_FILE_COMMENT));
-		} catch (IOException e) {
-			return DefaultSetHolder.DEFAULT_STOP_SET;
-		}
+        DirectoryScanner ds = new DirectoryScanner();
+        ds.setIncludes(new String[]{  DEFAULT_STOPWORD_FILE_PATTERN });
+        ds.setBasedir( dataPath.toAbsolutePath().toString() );
+        ds.scan();
+        return CharArraySet.unmodifiableSet(new CharArraySet(Arrays.
+            stream(ds.getIncludedFiles()).
+            flatMap(
+                (stopWordFilePath) -> {
+                    try {
+                        return WordlistLoader.getWordSet(
+                            IOUtils.getDecodingReader(
+                                new FileInputStream(stopWordFilePath),
+                                StandardCharsets.UTF_8),
+                            STOPWORD_FILE_COMMENT).stream();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    return null;
+                }
+            ).collect(Collectors.toSet()), false));
 	}
 
 	public JiebaAnalyzer(Settings settings, Environment env) {
